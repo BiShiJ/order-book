@@ -12,7 +12,11 @@ namespace order_book {
 
 class OrderBook {
   private:
-    using OrderLocation = std::list<Order>::iterator;
+    struct OrderLocation {
+        Side side;
+        Price price;
+        std::list<Order>::iterator listIter;
+    };
 
     OrderId d_nextOrderId;
     
@@ -20,10 +24,13 @@ class OrderBook {
     std::map<Price, std::list<Order>> d_asks;
     std::unordered_map<OrderId, OrderLocation> d_orderMap;
     
-    std::vector<Trade> MatchOrders();
+    std::vector<Trade> matchExistingOrders();
 
   public:
     OrderBook();
+    std::vector<Trade> createAddOrder(
+        const OrderType orderType, const Side side, const Price price, const Quantity initialQuantity);
+    void cancelOrder(const OrderId orderId);
 };
 
 inline OrderBook::OrderBook() :

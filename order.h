@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <format>
 #include <stdexcept>
-#include <string>
 
 namespace order_book {
 
@@ -37,6 +36,7 @@ class Order {
           const Quantity initialQuantity);
 
     OrderId getId() const;
+    Side getSide() const;
     Price getPrice() const;
     Quantity getRemainingQuantity() const;
 
@@ -62,6 +62,10 @@ inline OrderId Order::getId() const {
     return d_id;
 }
 
+inline Side Order::getSide() const {
+    return d_side;
+}
+
 inline Price Order::getPrice() const {
     return d_price;
 }
@@ -74,14 +78,8 @@ inline bool Order::isFilled() const {
     return getRemainingQuantity() == 0;
 }
 
-/// @throws std::invalid_argument if quantityToFill > d_remainingQuantity
+/// @pre quantityToFill must be less than or equal to d_remainingQuantity
 inline void Order::Fill(const Quantity quantityToFill) {
-    if (quantityToFill > d_remainingQuantity) {
-        throw std::invalid_argument(std::format(
-            "Cannot fill order with more than its remaining quantity. "
-            "orderId={}, remainingQuantity={}, quantityToFil={}",
-            d_id, d_remainingQuantity, quantityToFill));
-    }
     d_remainingQuantity -= quantityToFill;
 }
 
