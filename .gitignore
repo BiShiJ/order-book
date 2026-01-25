@@ -73,6 +73,9 @@ Testing/
 
 # Below are specific to Cursor
 
+# IDE / Editor settings
+.vscode/
+
 # Cursor AI - Internal State & Indexing
 .cursor/
 !.cursor/rules/  # KEEP shared AI rules if you use the modular format

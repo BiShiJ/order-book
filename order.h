@@ -1,10 +1,14 @@
+#pragma once
+
+#include <cstdint>
+#include <format>
+#include <stdexcept>
 #include <string>
 
 namespace order_book {
 
 enum class OrderType {
     GOOD_TILL_CANCELLED,
-    IMMEDIATE_OR_CANCELLED,
 };
 
 enum class Side {
@@ -12,9 +16,9 @@ enum class Side {
     SELL,
 };
 
-using OrderId = std::string;
-using Price = int;
-using Quantity = unsigned int;
+using OrderId = std::uint64_t;
+using Price = std::int32_t;
+using Quantity = std::uint64_t;
 
 class Order {
   private:
@@ -26,16 +30,27 @@ class Order {
     Quantity d_remainingQuantity;
 
   public:
-    Order(OrderId id, OrderType type, Side side, Price price, Quantity initialQuantity);
-    OrderId id() const;
-    OrderType type() const;
-    Side side() const;
-    Price price() const;
-    Quantity initialQuantity() const;
-    Quantity remainingQuantity() const;
+    Order(const OrderId id,
+          const OrderType type,
+          const Side side,
+          const Price price,
+          const Quantity initialQuantity);
+
+    OrderId getId() const;
+    Price getPrice() const;
+    Quantity getRemainingQuantity() const;
+
+    bool isFilled() const;
+
+    /// @throws std::invalid_argument if quantity > d_remainingQuantity
+    void Fill(const Quantity quantity);
 };
 
-inline Order::Order(OrderId id, OrderType type, Side side, Price price, Quantity initialQuantity) :
+inline Order::Order(const OrderId id,
+                    const OrderType type,
+                    const Side side,
+                    const Price price,
+                    const Quantity initialQuantity) :
     d_id(id),
     d_type(type),
     d_side(side),
@@ -43,28 +58,31 @@ inline Order::Order(OrderId id, OrderType type, Side side, Price price, Quantity
     d_initialQuantity(initialQuantity),
     d_remainingQuantity(initialQuantity) {}
 
-inline OrderId Order::id() const {
+inline OrderId Order::getId() const {
     return d_id;
 }
 
-inline OrderType Order::type() const {
-    return d_type;
-}
-
-inline Side Order::side() const {
-    return d_side;
-}
-
-inline Price Order::price() const {
+inline Price Order::getPrice() const {
     return d_price;
 }
 
-inline Quantity Order::initialQuantity() const {
-    return d_initialQuantity;
-}
-
-inline Quantity Order::remainingQuantity() const {
+inline Quantity Order::getRemainingQuantity() const {
     return d_remainingQuantity;
 }
 
+inline bool Order::isFilled() const {
+    return getRemainingQuantity() == 0;
 }
+
+/// @throws std::invalid_argument if quantityToFill > d_remainingQuantity
+inline void Order::Fill(const Quantity quantityToFill) {
+    if (quantityToFill > d_remainingQuantity) {
+        throw std::invalid_argument(std::format(
+            "Cannot fill order with more than its remaining quantity. "
+            "orderId={}, remainingQuantity={}, quantityToFil={}",
+            d_id, d_remainingQuantity, quantityToFill));
+    }
+    d_remainingQuantity -= quantityToFill;
+}
+
+} // namespace order_book
