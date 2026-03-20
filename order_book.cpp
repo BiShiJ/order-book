@@ -3,8 +3,6 @@
 #include <iostream>
 
 #include "order.h"
-#include <ostream>
-#include <stdexcept>
 
 namespace order_book {
 
@@ -24,8 +22,8 @@ std::vector<Trade> OrderBook::matchExistingOrders() {
         std::list<Order>& bestAsks = d_asks.begin()->second;
 
         while (!bestBids.empty() && !bestAsks.empty()) {
-            Order& earliestBid = *bestBids.begin();
-            Order& earliestAsk = *bestAsks.begin();
+            Order& earliestBid = bestBids.front();
+            Order& earliestAsk = bestAsks.front();
 
             const Quantity quantityToFill = std::min(
                 earliestBid.getRemainingQuantity(), earliestAsk.getRemainingQuantity());

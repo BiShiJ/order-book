@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <format>
 #include <stdexcept>
 
 namespace order_book {
@@ -42,8 +41,8 @@ class Order {
 
     bool isFilled() const;
 
-    /// @throws std::invalid_argument if quantity > d_remainingQuantity
-    void Fill(const Quantity quantity);
+    /// @pre quantityToFill must be less than or equal to d_remainingQuantity
+    void Fill(const Quantity quantityToFill);
 };
 
 inline Order::Order(const OrderId id,
@@ -78,7 +77,6 @@ inline bool Order::isFilled() const {
     return getRemainingQuantity() == 0;
 }
 
-/// @pre quantityToFill must be less than or equal to d_remainingQuantity
 inline void Order::Fill(const Quantity quantityToFill) {
     d_remainingQuantity -= quantityToFill;
 }
