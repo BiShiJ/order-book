@@ -6,6 +6,20 @@
 
 namespace order_book {
 
+bool OrderBook::canMatch(const Side side, const Price price) {
+    if (side == Side::BUY) {
+        if (d_asks.empty()) {
+            return false;
+        }
+        return price >= d_asks.begin()->first;
+    } else {
+        if (d_bids.empty()) {
+            return false;
+        }
+        return price <= d_bids.begin()->first ;
+    }
+}
+
 std::vector<Trade> OrderBook::matchExistingOrders() {
     std::vector<Trade> trades;
     trades.reserve(d_orderMap.size());
@@ -62,12 +76,22 @@ std::vector<Trade> OrderBook::matchExistingOrders() {
 std::vector<Trade> OrderBook::createAddOrder(
     const OrderType orderType, const Side side, const Price price, const Quantity initialQuantity) {
     const OrderId orderId = d_nextOrderId++;
+    Order order {orderId, orderType, side, price, initialQuantity};
+
+    if (orderType == OrderType::IMMEDIATE_OR_CANCELLED && !canMatch(side, price)) {
+        std::cout << "No satisfying order existed for this IMMEDIATE_OR_CANCELLED order. "
+                  << "orderId=" << orderId
+                  << "side=" << side
+                  << "price=" << price
+                  << std::endl;
+        return {};
+    }
 
     if (side == Side::BUY) {
-        d_bids[price].emplace_back(orderId, orderType, side, price, initialQuantity);
+        d_bids[price].push_back(order);
         d_orderMap[orderId] = {side, price, prev(d_bids[price].end())};
     } else {
-        d_asks[price].emplace_back(orderId, orderType, side, price, initialQuantity);
+        d_asks[price].push_back(order);
         d_orderMap[orderId] = {side, price, prev(d_asks[price].end())};
     }
 

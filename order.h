@@ -1,12 +1,18 @@
 #pragma once
 
 #include <cstdint>
+#include <ostream>
 #include <stdexcept>
 
 namespace order_book {
 
+using OrderId = std::uint64_t;
+using Price = std::int32_t;
+using Quantity = std::uint64_t;
+
 enum class OrderType {
     GOOD_TILL_CANCELLED,
+    IMMEDIATE_OR_CANCELLED,
 };
 
 enum class Side {
@@ -14,9 +20,17 @@ enum class Side {
     SELL,
 };
 
-using OrderId = std::uint64_t;
-using Price = std::int32_t;
-using Quantity = std::uint64_t;
+inline std::ostream& operator<<(std::ostream& os, const Side side) {
+    switch (side) {
+        case Side::BUY:
+            os << "BUY";
+            break;
+        case Side::SELL:
+            os << "SELL";
+            break;
+    }
+    return os;
+}
 
 class Order {
   private:
