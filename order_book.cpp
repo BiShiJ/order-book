@@ -79,10 +79,10 @@ std::vector<Trade> OrderBook::createAddOrder(
     Order order {orderId, orderType, side, price, initialQuantity};
 
     if (orderType == OrderType::IMMEDIATE_OR_CANCELLED && !canMatch(side, price)) {
-        std::cout << "No satisfying order existed for this IMMEDIATE_OR_CANCELLED order. "
-                  << "orderId=" << orderId
-                  << "side=" << side
-                  << "price=" << price
+        std::cout << "No satisfying order existed for this IMMEDIATE_OR_CANCELLED order."
+                  << " orderId=" << orderId
+                  << " side=" << side
+                  << " price=" << price
                   << std::endl;
         return {};
     }
@@ -95,7 +95,13 @@ std::vector<Trade> OrderBook::createAddOrder(
         d_orderMap[orderId] = {side, price, prev(d_asks[price].end())};
     }
 
-    return matchExistingOrders();
+    std::vector<Trade> trades = matchExistingOrders();
+
+    if (orderType == OrderType::IMMEDIATE_OR_CANCELLED && d_orderMap.contains(orderId)) {
+        cancelOrder(orderId);
+    }
+
+    return trades;
 }
 
 void OrderBook::cancelOrder(const OrderId orderId) {
