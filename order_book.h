@@ -24,6 +24,7 @@ class OrderBook {
     std::map<Price, std::list<Order>> d_asks;
     std::unordered_map<OrderId, OrderLocation> d_orderMap;
     
+    bool canMatch(const Side side, const Price price);
     std::vector<Trade> matchExistingOrders();
 
   public:
