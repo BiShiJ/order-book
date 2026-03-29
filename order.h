@@ -1,68 +1,51 @@
 #pragma once
 
-#include <cstdint>
-#include <ostream>
+#include <optional>
 #include <stdexcept>
 
+#include "aliases.h"
+#include "enums.h"
+
 namespace order_book {
-
-using OrderId = std::uint64_t;
-using Price = std::int32_t;
-using Quantity = std::uint64_t;
-
-enum class OrderType {
-    GOOD_TILL_CANCELLED,
-    IMMEDIATE_OR_CANCELLED,
-};
-
-enum class Side {
-    BUY,
-    SELL,
-};
-
-inline std::ostream& operator<<(std::ostream& os, const Side side) {
-    switch (side) {
-        case Side::BUY:
-            os << "BUY";
-            break;
-        case Side::SELL:
-            os << "SELL";
-            break;
-    }
-    return os;
-}
 
 class Order {
   private:
     OrderId d_id;
     OrderType d_type;
     Side d_side;
-    Price d_price;
+    std::optional<Price> d_price;
     Quantity d_initialQuantity;
     Quantity d_remainingQuantity;
 
   public:
+    /// @param[in] price absent for market orders until @c setPrice() assigns the synthetic limit.
     Order(const OrderId id,
           const OrderType type,
           const Side side,
-          const Price price,
+          const std::optional<Price> price,
           const Quantity initialQuantity);
 
     OrderId getId() const;
+    OrderType getOrderType() const;
     Side getSide() const;
+
+    /// @pre Limit price is set ( not @c std::nullopt ).
+    /// For market orders, only after @c setPrice() before book insertion.
     Price getPrice() const;
+
+    void setPrice(const Price price);
     Quantity getRemainingQuantity() const;
 
     bool isFilled() const;
 
-    /// @pre quantityToFill must be less than or equal to d_remainingQuantity
+    /// @pre The @c quantityToFill value must be less than or equal to @c d_remainingQuantity.
     void Fill(const Quantity quantityToFill);
 };
 
 inline Order::Order(const OrderId id,
                     const OrderType type,
                     const Side side,
-                    const Price price,
+                    const std::optional<Price> price,
                     const Quantity initialQuantity) :
     d_id(id),
     d_type(type),
@@ -75,12 +58,20 @@ inline OrderId Order::getId() const {
     return d_id;
 }
 
+inline OrderType Order::getOrderType() const {
+    return d_type;
+}
+
 inline Side Order::getSide() const {
     return d_side;
 }
 
 inline Price Order::getPrice() const {
-    return d_price;
+    return d_price.value();
+}
+
+inline void Order::setPrice(const Price price) {
+    d_price = price;
 }
 
 inline Quantity Order::getRemainingQuantity() const {
