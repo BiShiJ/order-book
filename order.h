@@ -24,6 +24,10 @@ class Order {
           const Side side,
           const std::optional<Price> price,
           const Quantity initialQuantity);
+    
+    /**
+     * Getters and setters
+     */
 
     OrderId getId() const;
     OrderType getOrderType() const;
@@ -35,6 +39,10 @@ class Order {
 
     void setPrice(const Price price);
     Quantity getRemainingQuantity() const;
+
+    /**
+     * Order filling logic
+     */
 
     bool isFilled() const;
 

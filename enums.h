@@ -8,6 +8,7 @@ enum class OrderType {
     // Limit order
     GoodTillCancelled,
     ImmediateOrCancel,
+    Day,
 
     // Market order
     Market

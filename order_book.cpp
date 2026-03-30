@@ -7,6 +7,41 @@
 
 namespace order_book {
 
+void OrderBook::autoCancelDayOrders() {
+    while(true) {
+        if (d_isMarketOpen.load(std::memory_order_acquire)) {
+            continue;
+        }
+
+        {
+            std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+
+            std::vector<OrderId> dayOrderIds; 
+            for (const auto& [_, orders] : d_bids) {
+                for (const Order& order : orders) {
+                    if (order.getOrderType() != OrderType::Day) {
+                        continue;
+                    }
+                    dayOrderIds.push_back(order.getId());
+                }
+            }
+            for (const auto& [_, orders] : d_asks) {
+                for (const Order& order : orders) {
+                    if (order.getOrderType() != OrderType::Day) {
+                        continue;
+                    }
+                    dayOrderIds.push_back(order.getId());
+                }
+            }
+            for (const OrderId orderId : dayOrderIds) {
+                cancelExistingOrder(orderId);
+            }
+
+            return;
+        }
+    }
+}
+
 bool OrderBook::shouldAddLimitOrder(
         const OrderId orderId, const OrderType orderType, const Side side, const Price price) {
     if (orderType == OrderType::ImmediateOrCancel && !canMatchLimitOrder(side, price)) {
@@ -143,17 +178,17 @@ void OrderBook::cancelExistingOrder(const OrderId orderId) {
 
 std::vector<Trade> OrderBook::createAddLimitOrder(
     const OrderType orderType, const Side side, const Price price, const Quantity initialQuantity) {
+    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+    
     const OrderId orderId = d_nextOrderId++;
     Order order(orderId, orderType, side, price, initialQuantity);
 
-    if (shouldAddLimitOrder(orderId, orderType, side, price)) {
-        return addOrder(order);
-    } else {
-        return {};
-    }
+    return shouldAddLimitOrder(orderId, orderType, side, price) ? addOrder(order) : std::vector<Trade>();
 }
 
 std::vector<Trade> OrderBook::createAddMarketOrder(const Side side, const Quantity quantity) {
+    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+
     const OrderId orderId = d_nextOrderId++;
     Order order(orderId, OrderType::Market, side, std::nullopt, quantity);
 
@@ -166,6 +201,8 @@ std::vector<Trade> OrderBook::createAddMarketOrder(const Side side, const Quanti
 }
 
 void OrderBook::cancelOrder(const OrderId orderId) {
+    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+
     if (!d_orderMap.contains(orderId)) {
         std::cerr << "Cannot find order. Cancellation failed. orderId=" << orderId << std::endl;
         return;
