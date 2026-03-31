@@ -3,43 +3,96 @@
 #include <iostream>
 
 #include "enums.h"
-#include "order.h"
 
 namespace order_book {
 
-void OrderBook::autoCancelDayOrders() {
-    while(true) {
-        if (d_isMarketOpen.load(std::memory_order_acquire)) {
-            continue;
-        }
+bool OrderBook::isMarketInOpenHours() {
+    //TODO
+    return false;
+}
 
+void OrderBook::openCloseMarket() {
+    while (true) {
+        bool wakeDueToShutdown;
         {
-            std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
-
-            std::vector<OrderId> dayOrderIds; 
-            for (const auto& [_, orders] : d_bids) {
-                for (const Order& order : orders) {
-                    if (order.getOrderType() != OrderType::Day) {
-                        continue;
-                    }
-                    dayOrderIds.push_back(order.getId());
-                }
-            }
-            for (const auto& [_, orders] : d_asks) {
-                for (const Order& order : orders) {
-                    if (order.getOrderType() != OrderType::Day) {
-                        continue;
-                    }
-                    dayOrderIds.push_back(order.getId());
-                }
-            }
-            for (const OrderId orderId : dayOrderIds) {
-                cancelExistingOrder(orderId);
-            }
-
+            std::unique_lock<std::mutex> marketLock(d_marketMutex);
+            auto nextWakeupTime =
+                d_isMarketOpen.load(std::memory_order_acquire) ? calculateNextCloseTime() : calculateNextOpenTime();
+            wakeDueToShutdown =  d_marketConditionVariable.wait_until(
+                marketLock,nextWakeupTime,[this] { return d_isShuttingDown; });
+        }
+        
+        // If wakenup because of the entire system is shutting down, close market and return
+        if (wakeDueToShutdown) {
+            onMarketClose();
             return;
         }
+        
+        if (isMarketInOpenHours()) {
+            onMarketOpen();
+        } else {
+            onMarketClose();
+        }
     }
+}
+
+time_point<system_clock> OrderBook::calculateNextOpenTime() {
+    //TODO
+    return system_clock::now();
+}
+
+time_point<system_clock> OrderBook::calculateNextCloseTime() {
+    //TODO
+    return system_clock::now();
+}
+
+void OrderBook::onMarketOpen() {
+    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+    d_isMarketOpen.store(true, std::memory_order_release);
+    addPendingLimitOrders();
+}
+
+void OrderBook::addPendingLimitOrders() {
+    for (auto it = d_pendingLimitOrders.begin(); it != d_pendingLimitOrders.end(); ) {
+        Order order = it->second;
+        it = d_pendingLimitOrders.erase(it);
+        addLimitOrder(order);
+    }
+}
+
+void OrderBook::onMarketClose() {
+    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+    d_isMarketOpen.store(false, std::memory_order_release);
+    cancelRemainingDayOrders();
+}
+
+void OrderBook::cancelRemainingDayOrders() {
+    std::vector<OrderId> dayOrderIds; 
+    for (const auto& [_, orders] : d_bids) {
+        for (const Order& order : orders) {
+            if (order.getOrderType() != OrderType::Day) {
+                continue;
+            }
+            dayOrderIds.push_back(order.getId());
+        }
+    }
+    for (const auto& [_, orders] : d_asks) {
+        for (const Order& order : orders) {
+            if (order.getOrderType() != OrderType::Day) {
+                continue;
+            }
+            dayOrderIds.push_back(order.getId());
+        }
+    }
+    for (const OrderId orderId : dayOrderIds) {
+        cancelExistingOrder(orderId);
+    }
+}
+
+std::vector<Trade> OrderBook::addLimitOrder(Order& order) {
+    bool shouldAdd = shouldAddLimitOrder(
+        order.getId(), order.getOrderType(), order.getSide(), order.getPrice());
+    return shouldAdd ? addOrder(order) : std::vector<Trade>();
 }
 
 bool OrderBook::shouldAddLimitOrder(
@@ -183,11 +236,24 @@ std::vector<Trade> OrderBook::createAddLimitOrder(
     const OrderId orderId = d_nextOrderId++;
     Order order(orderId, orderType, side, price, initialQuantity);
 
-    return shouldAddLimitOrder(orderId, orderType, side, price) ? addOrder(order) : std::vector<Trade>();
+    if (!d_isMarketOpen.load(std::memory_order_acquire)) {
+        std::cout << "Market is closed. Limit order has been created. "
+                  << "orderId=" << orderId
+                  << "It will be added to order book when market opens";
+        d_pendingLimitOrders.emplace(orderId, order);
+        return {};
+    }
+
+    return addLimitOrder(order);
 }
 
 std::vector<Trade> OrderBook::createAddMarketOrder(const Side side, const Quantity quantity) {
     std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+
+    if (!d_isMarketOpen.load(std::memory_order_acquire)) {
+        std::cout << "Market is closed. Cannot add Market Order.\n";
+        return {};
+    }
 
     const OrderId orderId = d_nextOrderId++;
     Order order(orderId, OrderType::Market, side, std::nullopt, quantity);

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <optional>
-#include <stdexcept>
 
 #include "aliases.h"
 #include "enums.h"

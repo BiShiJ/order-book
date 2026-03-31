@@ -1,5 +1,6 @@
 #pragma once
 
+#include "aliases.h"
 #include "order.h"
 
 namespace order_book {
