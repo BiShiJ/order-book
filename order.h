@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <optional>
 
 #include "aliases.h"
@@ -18,35 +19,35 @@ class Order {
 
   public:
     /// @param[in] price absent for market orders until @c setPrice() assigns the synthetic limit.
-    Order(const OrderId id,
-          const OrderType type,
-          const Side side,
-          const std::optional<Price> price,
-          const Quantity initialQuantity);
+    Order(OrderId id,
+          OrderType type,
+          Side side,
+          std::optional<Price> price,
+          Quantity initialQuantity);
     
     /**
      * Getters and setters
      */
 
-    OrderId getId() const;
-    OrderType getOrderType() const;
-    Side getSide() const;
+    [[nodiscard]] OrderId getId() const;
+    [[nodiscard]] OrderType getOrderType() const;
+    [[nodiscard]] Side getSide() const;
 
     /// @pre Limit price is set ( not @c std::nullopt ).
     /// For market orders, only after @c setPrice() before book insertion.
-    Price getPrice() const;
+    [[nodiscard]] Price getPrice() const;
 
-    void setPrice(const Price price);
-    Quantity getRemainingQuantity() const;
+    void setPrice(Price price);
+    [[nodiscard]] Quantity getRemainingQuantity() const;
 
     /**
      * Order filling logic
      */
 
-    bool isFilled() const;
+    [[nodiscard]] bool isFilled() const;
 
     /// @pre The @c quantityToFill value must be less than or equal to @c d_remainingQuantity.
-    void Fill(const Quantity quantityToFill);
+    void Fill(Quantity quantityToFill);
 };
 
 inline Order::Order(const OrderId id,
@@ -74,7 +75,12 @@ inline Side Order::getSide() const {
 }
 
 inline Price Order::getPrice() const {
-    return d_price.value();
+    if (d_price.has_value()) {
+        return d_price.value();
+    }
+
+    std::cerr << "d_price is std::nullopt. Trying to access market order d_price before it is set.\n";
+    return Price{};
 }
 
 inline void Order::setPrice(const Price price) {

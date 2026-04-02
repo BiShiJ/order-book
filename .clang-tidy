@@ -1,0 +1,20 @@
+# https://clang.llvm.org/extra/clang-tidy/
+---
+Checks: >
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  readability-*,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-reinterpret-cast
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
+FormatStyle: none

@@ -24,12 +24,19 @@ using namespace std::chrono;
 class OrderBook {
   private:
     struct OrderLocation {
-        Side side;
-        Price price;
+        Side side{};
+        Price price{};
         std::list<Order>::iterator listIter;
     };
 
+    /**
+     * Static members
+     */
+
     static bool isMarketInOpenHours();
+    
+    static time_point<system_clock> calculateNextOpenTime();
+    static time_point<system_clock> calculateNextCloseTime();
 
     std::atomic<bool> d_isMarketOpen{isMarketInOpenHours()};
 
@@ -38,7 +45,7 @@ class OrderBook {
      */
     std::mutex d_ordersMutex;
     OrderId d_nextOrderId = OrderId(1);
-    std::map<Price, std::list<Order>, std::greater<Price>> d_bids;
+    std::map<Price, std::list<Order>, std::greater<>> d_bids;
     std::map<Price, std::list<Order>> d_asks;
     std::unordered_map<OrderId, OrderLocation> d_orderMap;
     std::map<OrderId, Order> d_pendingLimitOrders;
@@ -53,8 +60,6 @@ class OrderBook {
     std::thread d_marketStatusThread;
 
     void openCloseMarket();
-    time_point<system_clock> calculateNextOpenTime();
-    time_point<system_clock> calculateNextCloseTime();
 
     void onMarketOpen();
     void addPendingLimitOrders();
@@ -65,14 +70,14 @@ class OrderBook {
      * Limit order logic
      */
     std::vector<Trade> addLimitOrder(Order& order);
-    bool shouldAddLimitOrder(const OrderId orderId, const OrderType orderType, const Side side, const Price price);
-    bool canMatchLimitOrder(const Side side, const Price price);
+    bool shouldAddLimitOrder(OrderId orderId, OrderType orderType, Side side, Price price);
+    bool canMatchLimitOrder(Side side, Price price);
 
     /**
      * Market order logic
      */
-    bool canMatchMarketOrder(const Side side);
-    Price decideMarketOrderPrice(const Side);
+    bool canMatchMarketOrder(Side side);
+    Price decideMarketOrderPrice(Side side);
 
     /**
      * Internal logic to manipulate orders
@@ -80,22 +85,28 @@ class OrderBook {
     
     std::vector<Trade> addOrder(Order& order);
     std::vector<Trade> matchExistingOrders();
-    void cancelRemainingQuantityAfterMatching(const OrderId orderId, const OrderType orderType);
+    void cancelRemainingQuantityAfterMatching(OrderId orderId, OrderType orderType);
 
     /// @pre @c orderId must already exist in the order book.
-    void cancelExistingOrder(const OrderId orderId);
+    void cancelExistingOrder(OrderId orderId);
 
   public:
     OrderBook();
+
+    // Disable copying and moving
+    OrderBook(const OrderBook& other) = delete;
+    OrderBook& operator=(const OrderBook& other) = delete;
+    OrderBook(const OrderBook&& other) noexcept = delete;
+    OrderBook& operator=(const OrderBook&& other) = delete;
+
     ~OrderBook();
 
     /**
      * Thread-safe public operations
      */
-    std::vector<Trade> createAddLimitOrder(
-        const OrderType orderType, const Side side, const Price price, const Quantity initialQuantity);
-    std::vector<Trade> createAddMarketOrder(const Side side, const Quantity initialQuantity);
-    void cancelOrder(const OrderId orderId);
+    std::vector<Trade> createAddLimitOrder(OrderType orderType, Side side, Price price, Quantity initialQuantity);
+    std::vector<Trade> createAddMarketOrder(Side side, Quantity initialQuantity);
+    void cancelOrder(OrderId orderId);
 };
 
 inline OrderBook::OrderBook() :

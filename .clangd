@@ -1,3 +1,7 @@
-# For IntelliSense purpose
+# IntelliSense + clang-tidy (uses .clang-tidy in this directory)
 CompileFlags:
-  Add: [-std=c++20, -Wall]
+  Add: [-std=c++20, -Wall, -Wextra, -pedantic]
+
+Diagnostics:
+  ClangTidy:
+    FastCheckFilter: Loose

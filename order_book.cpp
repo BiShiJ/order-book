@@ -1,6 +1,7 @@
 #include "order_book.h"
 
 #include <iostream>
+#include <iterator>
 
 #include "enums.h"
 
@@ -11,19 +12,29 @@ bool OrderBook::isMarketInOpenHours() {
     return false;
 }
 
+time_point<system_clock> OrderBook::calculateNextOpenTime() {
+    //TODO
+    return system_clock::now();
+}
+
+time_point<system_clock> OrderBook::calculateNextCloseTime() {
+    //TODO
+    return system_clock::now();
+}
+
 void OrderBook::openCloseMarket() {
     while (true) {
-        bool wakeDueToShutdown;
+        bool wakeupDueToShutdown = false;
         {
             std::unique_lock<std::mutex> marketLock(d_marketMutex);
             auto nextWakeupTime =
                 d_isMarketOpen.load(std::memory_order_acquire) ? calculateNextCloseTime() : calculateNextOpenTime();
-            wakeDueToShutdown =  d_marketConditionVariable.wait_until(
+            wakeupDueToShutdown =  d_marketConditionVariable.wait_until(
                 marketLock,nextWakeupTime,[this] { return d_isShuttingDown; });
         }
         
         // If wakenup because of the entire system is shutting down, close market and return
-        if (wakeDueToShutdown) {
+        if (wakeupDueToShutdown) {
             onMarketClose();
             return;
         }
@@ -34,16 +45,6 @@ void OrderBook::openCloseMarket() {
             onMarketClose();
         }
     }
-}
-
-time_point<system_clock> OrderBook::calculateNextOpenTime() {
-    //TODO
-    return system_clock::now();
-}
-
-time_point<system_clock> OrderBook::calculateNextCloseTime() {
-    //TODO
-    return system_clock::now();
 }
 
 void OrderBook::onMarketOpen() {
@@ -102,7 +103,7 @@ bool OrderBook::shouldAddLimitOrder(
                   << ". orderId=" << orderId
                   << ", side=" << side
                   << ", price=" << price
-                  << std::endl;
+                  << "\n";
         return false;
     }
     return true;
@@ -110,16 +111,9 @@ bool OrderBook::shouldAddLimitOrder(
 
 bool OrderBook::canMatchLimitOrder(const Side side, const Price price) {
     if (side == Side::Buy) {
-        if (d_asks.empty()) {
-            return false;
-        }
-        return price >= d_asks.begin()->first;
-    } else {
-        if (d_bids.empty()) {
-            return false;
-        }
-        return price <= d_bids.begin()->first ;
+        return d_asks.empty() ? false : price >= d_asks.begin()->first;
     }
+    return d_bids.empty() ? false : price <= d_bids.begin()->first;
 }
 
 bool OrderBook::canMatchMarketOrder(const Side side) {
@@ -138,10 +132,12 @@ std::vector<Trade> OrderBook::addOrder(Order& order) {
 
     if (side == Side::Buy) {
         d_bids[price].push_back(order);
-        d_orderMap[orderId] = {side, price, std::prev(d_bids[price].end())};
+        d_orderMap.emplace(orderId,
+            OrderLocation{.side = side, .price = price, .listIter = std::prev(d_bids[price].end())});
     } else {
         d_asks[price].push_back(order);
-        d_orderMap[orderId] = {side, price, std::prev(d_asks[price].end())};
+        d_orderMap.emplace(orderId,
+            OrderLocation{.side = side, .price = price, .listIter = std::prev(d_asks[price].end())});
     }
 
     std::vector<Trade> trades = matchExistingOrders();
@@ -189,8 +185,14 @@ std::vector<Trade> OrderBook::matchExistingOrders() {
                 bestAsks.pop_front();
                 d_orderMap.erase(askOrderId);
             }
-
-            trades.emplace_back(bidOrderId, askOrderId, tradePrice, quantityToFill);
+            
+            Trade::Args tradeArgs = {
+                .bidOrderId = bidOrderId,
+                .askOrderId = askOrderId,
+                .price = tradePrice,
+                .quantity = quantityToFill,
+            };
+            trades.emplace_back(tradeArgs);
         }
 
         if (bestBids.empty()) {
@@ -270,7 +272,7 @@ void OrderBook::cancelOrder(const OrderId orderId) {
     std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
 
     if (!d_orderMap.contains(orderId)) {
-        std::cerr << "Cannot find order. Cancellation failed. orderId=" << orderId << std::endl;
+        std::cerr << "Cannot find order. Cancellation failed. orderId=" << orderId << "\n";
         return;
     }
 

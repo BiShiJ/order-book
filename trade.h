@@ -13,16 +13,17 @@ class Trade {
     Quantity d_quantity;
 
   public:
-    Trade(const OrderId bidOrderId,
-          const OrderId askOrderId,
-          const Price price,
-          const Quantity quantity);
+    struct Args {
+        OrderId bidOrderId;
+        OrderId askOrderId;
+        Price price;
+        Quantity quantity;
+    };
+
+    explicit Trade(Args args);
 };
 
-inline Trade::Trade(const OrderId bidOrderId,
-                    const OrderId askOrderId,
-                    const Price price,
-                    const Quantity quantity) :
-    d_bidOrderId(bidOrderId), d_askOrderId(askOrderId), d_price(price), d_quantity(quantity) {}
+inline Trade::Trade(const Args args) :
+    d_bidOrderId(args.bidOrderId), d_askOrderId(args.askOrderId), d_price(args.price), d_quantity(args.quantity) {}
 
 } // namespace order_book

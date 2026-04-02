@@ -1,12 +1,13 @@
 #pragma once
 
+#include <cstdint>
 #include <ostream>
 
 namespace order_book {
 
-enum class OrderType {
+enum class OrderType : std::uint8_t {
     // Limit order
-    GoodTillCancelled,
+    GoodTilCanceled,
     ImmediateOrCancel,
     Day,
 
@@ -14,7 +15,7 @@ enum class OrderType {
     Market
 };
 
-enum class Side {
+enum class Side : std::uint8_t {
     Buy,
     Sell,
 };
