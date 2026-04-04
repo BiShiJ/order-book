@@ -1,5 +1,7 @@
 #include "order_book.h"
 
+#include <atomic>
+#include <chrono>
 #include <iostream>
 #include <iterator>
 
@@ -7,63 +9,118 @@
 
 namespace order_book {
 
-bool OrderBook::isMarketInOpenHours() {
-    //TODO
-    return false;
+cr::seconds OrderBook::s_marketOpenTime = cr::hours(9) + cr::minutes(30);
+cr::seconds OrderBook::s_marketCloseTime = cr::hours(16);
+
+bool OrderBook::isMarketInOpenHours(const cr::time_point<cr::system_clock>& timePoint) {
+    const auto [_, localDay, localSecond, secondsWithinDay] = getLocalTimeInfo(timePoint);
+
+    if (!isWeekday(localDay)) {
+        return false;
+    }
+
+    return s_marketOpenTime <= secondsWithinDay && secondsWithinDay < s_marketCloseTime;
 }
 
-time_point<system_clock> OrderBook::calculateNextOpenTime() {
-    //TODO
-    return system_clock::now();
+OrderBook::LocalTimeInfo OrderBook::getLocalTimeInfo(const cr::time_point<cr::system_clock>& timePoint) {
+    const cr::time_zone* timeZone = cr::current_zone();
+    const cr::zoned_time zonedTime = cr::zoned_time(timeZone, timePoint);
+
+    const cr::local_time<cr::system_clock::duration> localTime = zonedTime.get_local_time();
+    const cr::local_days localDay = cr::floor<cr::days>(localTime);
+    const cr::local_seconds localSecond = cr::floor<cr::seconds>(localTime);
+    const cr::seconds secondWithinDay = localSecond - localDay;
+
+    return {
+        .localTime = localTime,
+        .localDay = localDay,
+        .localSecond = localSecond,
+        .secondsWithinDay = secondWithinDay
+    };
 }
 
-time_point<system_clock> OrderBook::calculateNextCloseTime() {
-    //TODO
-    return system_clock::now();
+bool OrderBook::isWeekday(const cr::local_days& localDay) {
+    const cr::weekday dayInWeek = cr::weekday(localDay);
+    return !(dayInWeek == cr::Saturday || dayInWeek == cr::Sunday);
+}
+
+cr::time_point<cr::system_clock> OrderBook::calculateNextOpenTime(const cr::time_point<cr::system_clock>& timePoint) {
+    const auto [_, localDay, localSecond, secondsWithinDay] = getLocalTimeInfo(timePoint);
+
+    const cr::local_days openDay =
+        isWeekday(localDay) && secondsWithinDay < s_marketOpenTime ? localDay : calculateNextWeekday(localDay);
+    const cr::local_seconds openSeconds = openDay + s_marketOpenTime;
+    const cr::zoned_time zonedOpen = cr::zoned_time(cr::current_zone(), openSeconds);
+    return zonedOpen.get_sys_time();
+}
+
+cr::time_point<cr::system_clock> OrderBook::calculateNextCloseTime(const cr::time_point<cr::system_clock>& timePoint) {
+    const auto [_, localDay, localSecond, secondsWithinDay] = getLocalTimeInfo(timePoint);
+
+    const cr::local_days closeDay =
+        isWeekday(localDay) && secondsWithinDay < s_marketCloseTime ? localDay : calculateNextWeekday(localDay);
+    const cr::local_seconds closeSeconds = closeDay + s_marketCloseTime;
+    const cr::zoned_time zonedClose = cr::zoned_time(cr::current_zone(), closeSeconds);
+    return zonedClose.get_sys_time();
+}
+
+cr::local_days OrderBook::calculateNextWeekday(const cr::local_days& localDay) {
+    const cr::weekday dayInWeek = cr::weekday(localDay);
+    if (dayInWeek == cr::Friday) {
+        return localDay + cr::days(3);
+    }
+    if (dayInWeek == cr::Saturday) {
+        return localDay + cr::days(2);
+    }
+    return localDay + cr::days(1);
 }
 
 void OrderBook::openCloseMarket() {
     while (true) {
+        const MarketTimeStatus marketTimeStatus = d_marketTimeStatus.load(std::memory_order_acquire);
+        const cr::time_point nextWakeupTimePoint = marketTimeStatus.isMarketOpen
+                                                   ? calculateNextCloseTime(marketTimeStatus.timePoint)
+                                                   : calculateNextOpenTime(marketTimeStatus.timePoint);
         bool wakeupDueToShutdown = false;
         {
-            std::unique_lock<std::mutex> marketLock(d_marketMutex);
-            auto nextWakeupTime =
-                d_isMarketOpen.load(std::memory_order_acquire) ? calculateNextCloseTime() : calculateNextOpenTime();
+            std::unique_lock marketLock(d_marketMutex);
             wakeupDueToShutdown =  d_marketConditionVariable.wait_until(
-                marketLock,nextWakeupTime,[this] { return d_isShuttingDown; });
+                marketLock,nextWakeupTimePoint,[this] { return d_isShuttingDown; });
         }
+
+        const cr::time_point nowTimePoint = cr::system_clock::now();
         
-        // If wakenup because of the entire system is shutting down, close market and return
+        // If wakeup because of the entire system is shutting down, close market and return
         if (wakeupDueToShutdown) {
-            onMarketClose();
+            onMarketClose(nowTimePoint);
             return;
         }
         
-        if (isMarketInOpenHours()) {
-            onMarketOpen();
+        if ( isMarketInOpenHours(nowTimePoint) ) {
+            onMarketOpen(nowTimePoint);
         } else {
-            onMarketClose();
+            onMarketClose(nowTimePoint);
         }
     }
 }
 
-void OrderBook::onMarketOpen() {
-    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
-    d_isMarketOpen.store(true, std::memory_order_release);
+void OrderBook::onMarketOpen(const cr::time_point<cr::system_clock>& timePoint) {
+    std::scoped_lock ordersLock(d_ordersMutex);
+    d_marketTimeStatus.store(MarketTimeStatus(timePoint, true), std::memory_order_release);
     addPendingLimitOrders();
 }
 
 void OrderBook::addPendingLimitOrders() {
-    for (auto it = d_pendingLimitOrders.begin(); it != d_pendingLimitOrders.end(); ) {
+    for (auto it = d_pendingLimitOrders.cbegin(); it != d_pendingLimitOrders.cend(); ) {
         Order order = it->second;
         it = d_pendingLimitOrders.erase(it);
         addLimitOrder(order);
     }
 }
 
-void OrderBook::onMarketClose() {
-    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
-    d_isMarketOpen.store(false, std::memory_order_release);
+void OrderBook::onMarketClose(const cr::time_point<cr::system_clock>& timePoint) {
+    std::scoped_lock ordersLock(d_ordersMutex);
+    d_marketTimeStatus.store(MarketTimeStatus(timePoint, false), std::memory_order_release);
     cancelRemainingDayOrders();
 }
 
@@ -97,7 +154,7 @@ std::vector<Trade> OrderBook::addLimitOrder(Order& order) {
 }
 
 bool OrderBook::shouldAddLimitOrder(
-        const OrderId orderId, const OrderType orderType, const Side side, const Price price) {
+        const OrderId orderId, const OrderType orderType, const Side side, const Price price) const {
     if (orderType == OrderType::ImmediateOrCancel && !canMatchLimitOrder(side, price)) {
         std::cout << "No satisfying order existed for this Immediate-or-Cancel order"
                   << ". orderId=" << orderId
@@ -109,14 +166,14 @@ bool OrderBook::shouldAddLimitOrder(
     return true;
 }
 
-bool OrderBook::canMatchLimitOrder(const Side side, const Price price) {
+bool OrderBook::canMatchLimitOrder(const Side side, const Price price) const {
     if (side == Side::Buy) {
         return d_asks.empty() ? false : price >= d_asks.begin()->first;
     }
     return d_bids.empty() ? false : price <= d_bids.begin()->first;
 }
 
-bool OrderBook::canMatchMarketOrder(const Side side) {
+bool OrderBook::canMatchMarketOrder(const Side side) const {
     return side == Side::Buy ? !d_asks.empty() : !d_bids.empty();
 }
 
@@ -140,7 +197,7 @@ std::vector<Trade> OrderBook::addOrder(Order& order) {
             OrderLocation{.side = side, .price = price, .listIter = std::prev(d_asks[price].end())});
     }
 
-    std::vector<Trade> trades = matchExistingOrders();
+    std::vector trades = matchExistingOrders();
 
     cancelRemainingQuantityAfterMatching(orderId, orderType);
 
@@ -215,7 +272,7 @@ void OrderBook::cancelRemainingQuantityAfterMatching(const OrderId orderId, cons
 }
 
 void OrderBook::cancelExistingOrder(const OrderId orderId) {
-    auto [side, price, listIter] = d_orderMap[orderId];
+    const auto [side, price, listIter] = d_orderMap[orderId];
     d_orderMap.erase(orderId);
 
     if (side == Side::Buy) {
@@ -233,12 +290,12 @@ void OrderBook::cancelExistingOrder(const OrderId orderId) {
 
 std::vector<Trade> OrderBook::createAddLimitOrder(
     const OrderType orderType, const Side side, const Price price, const Quantity initialQuantity) {
-    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+    std::scoped_lock ordersLock(d_ordersMutex);
     
     const OrderId orderId = d_nextOrderId++;
     Order order(orderId, orderType, side, price, initialQuantity);
 
-    if (!d_isMarketOpen.load(std::memory_order_acquire)) {
+    if (!d_marketTimeStatus.load(std::memory_order_acquire).isMarketOpen) {
         std::cout << "Market is closed. Limit order has been created. "
                   << "orderId=" << orderId
                   << "It will be added to order book when market opens";
@@ -250,9 +307,9 @@ std::vector<Trade> OrderBook::createAddLimitOrder(
 }
 
 std::vector<Trade> OrderBook::createAddMarketOrder(const Side side, const Quantity quantity) {
-    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+    std::scoped_lock ordersLock(d_ordersMutex);
 
-    if (!d_isMarketOpen.load(std::memory_order_acquire)) {
+    if (!d_marketTimeStatus.load(std::memory_order_acquire).isMarketOpen) {
         std::cout << "Market is closed. Cannot add Market Order.\n";
         return {};
     }
@@ -269,7 +326,7 @@ std::vector<Trade> OrderBook::createAddMarketOrder(const Side side, const Quanti
 }
 
 void OrderBook::cancelOrder(const OrderId orderId) {
-    std::scoped_lock<std::mutex> ordersLock(d_ordersMutex);
+    std::scoped_lock ordersLock(d_ordersMutex);
 
     if (!d_orderMap.contains(orderId)) {
         std::cerr << "Cannot find order. Cancellation failed. orderId=" << orderId << "\n";

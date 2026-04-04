@@ -11,6 +11,8 @@ A C++ order book implementation with basic matching and a market open/close simu
 - Both `Buy` and `Sell` sides are supported.
 
 ### Market Open/Close Mechanism
+
+- The market is **open** on **weekdays** from **9:30** to **16:00** in the **host’s local timezone** (**6½ hours** per day; **16:00** is closed). **Weekends** and **nights** are closed. Exchange holidays are not modeled.
 - During market close, `Market` orders are rejected.
 - During market close, `Limit` orders are accepted but do not participate in matching until the next open.
 - When the market closes, remaining `Day` limit orders are cancelled; non-`Day` resting limit orders remain in the book and can be cancelled manually.
