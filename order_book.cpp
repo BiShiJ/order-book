@@ -45,23 +45,28 @@ bool OrderBook::isWeekday(const cr::local_days& localDay) {
 }
 
 cr::time_point<cr::system_clock> OrderBook::calculateNextOpenTime(const cr::time_point<cr::system_clock>& timePoint) {
-    const auto [_, localDay, localSecond, secondsWithinDay] = getLocalTimeInfo(timePoint);
-
-    const cr::local_days openDay =
-        isWeekday(localDay) && secondsWithinDay < s_marketOpenTime ? localDay : calculateNextWeekday(localDay);
-    const cr::local_seconds openSeconds = openDay + s_marketOpenTime;
-    const cr::zoned_time zonedOpen = cr::zoned_time(cr::current_zone(), openSeconds);
-    return zonedOpen.get_sys_time();
+    return calculateNextEventTime(true, timePoint);
 }
 
 cr::time_point<cr::system_clock> OrderBook::calculateNextCloseTime(const cr::time_point<cr::system_clock>& timePoint) {
-    const auto [_, localDay, localSecond, secondsWithinDay] = getLocalTimeInfo(timePoint);
+    return calculateNextEventTime(false, timePoint);
+}
 
-    const cr::local_days closeDay =
-        isWeekday(localDay) && secondsWithinDay < s_marketCloseTime ? localDay : calculateNextWeekday(localDay);
-    const cr::local_seconds closeSeconds = closeDay + s_marketCloseTime;
-    const cr::zoned_time zonedClose = cr::zoned_time(cr::current_zone(), closeSeconds);
-    return zonedClose.get_sys_time();
+cr::time_point<cr::system_clock> OrderBook::calculateNextEventTime(
+    const bool isNextEventOpen, const cr::time_point<cr::system_clock>& timePoint) {
+    const auto [_, localDay, localSecond, secondsWithinDay] = getLocalTimeInfo(timePoint);
+    // `localSecond` is not used in this function,
+    // but `[_, localDay, _, secondsWithinday]` will raise warning of multiple unnamed placeholders until C++26.
+    // So casting it to `void` to suppress the "unused variable" warning.
+    // Another option is adding `[[maybe_unused]]` before the entire declaration.
+    (void)localSecond;
+
+    const cr::seconds eventTimeWithinDay = isNextEventOpen ? s_marketOpenTime : s_marketCloseTime;
+    const cr::local_days eventDay =
+        isWeekday(localDay) && secondsWithinDay < eventTimeWithinDay ? localDay : calculateNextWeekday(localDay);
+    const cr::local_seconds eventSecond = eventDay + eventTimeWithinDay;
+    const cr::zoned_time zonedEvent = cr::zoned_time(cr::current_zone(), eventSecond);
+    return zonedEvent.get_sys_time();
 }
 
 cr::local_days OrderBook::calculateNextWeekday(const cr::local_days& localDay) {

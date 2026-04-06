@@ -9,7 +9,9 @@ CLANG_TIDY ?= clang-tidy
 
 .PHONY: all build lint clean
 
-all: build
+.DEFAULT_GOAL := build
+
+all: build lint
 
 build: $(TARGET)
 

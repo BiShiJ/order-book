@@ -63,6 +63,8 @@ class OrderBook {
     static cr::local_days calculateNextWeekday(const cr::local_days& localDay);
     static cr::time_point<cr::system_clock> calculateNextOpenTime(const cr::time_point<cr::system_clock>& timePoint);
     static cr::time_point<cr::system_clock> calculateNextCloseTime(const cr::time_point<cr::system_clock>& timePoint);
+    static cr::time_point<cr::system_clock> calculateNextEventTime(
+        bool isNextEventOpen, const cr::time_point<cr::system_clock>& timePoint);
 
     /**
      * Thread-safe member variable
