@@ -79,6 +79,8 @@ class OrderBook {
     std::map<Price, std::list<Order>, std::greater<>> d_bids;
     std::map<Price, std::list<Order>, std::less<>> d_asks;
     std::unordered_map<OrderId, OrderLocation> d_orderMap;
+    std::map<Price, Quantity, std::greater<>> d_bidVolumes;
+    std::map<Price, Quantity, std::less<>> d_askVolumes;
     std::map<OrderId, Order> d_pendingLimitOrders;
 
     /**
@@ -106,14 +108,15 @@ class OrderBook {
      * Limit order logic
      */
     std::vector<Trade> addLimitOrder(Order& order);
-    bool shouldAddLimitOrder(OrderId orderId, OrderType orderType, Side side, Price price) const;
-    bool canMatchLimitOrder(Side side, Price price) const;
+    bool shouldAddLimitOrder(const Order& order) const;
+    bool canMatchLimitOrder(Side orderSide, Price orderPrice) const;
+    bool canFullyFillLimitOrder(const Order& order) const;
 
     /**
      * Market order logic
      */
-    bool canMatchMarketOrder(Side side) const;
-    Price decideMarketOrderPrice(Side side);
+    bool canMatchMarketOrder(Side orderSide) const;
+    Price decideMarketOrderPrice(Side orderSide);
 
     /**
      * Internal logic to manipulate orders
@@ -121,6 +124,7 @@ class OrderBook {
     
     std::vector<Trade> addOrder(Order& order);
     std::vector<Trade> matchExistingOrders();
+    void eraseBestPriceLevelWhenEmpty();
     void cancelRemainingQuantityAfterMatching(OrderId orderId, OrderType orderType);
 
     /// @pre @c orderId must already exist in the order book.

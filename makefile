@@ -11,7 +11,7 @@ CLANG_TIDY ?= clang-tidy
 
 .DEFAULT_GOAL := build
 
-all: build lint
+all: clean build lint
 
 build: $(TARGET)
 

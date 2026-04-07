@@ -6,6 +6,7 @@ A C++ order book implementation with basic matching and a market open/close simu
 ### Supported Order Types
 - `Limit` (`GoodTilCanceled`): rests at its price until it trades (fills) or is explicitly cancelled.
 - `Limit` (`ImmediateOrCancel`): only accepted if it can match immediately; any unfilled remainder is cancelled after matching.
+- `Limit` (`FillOrKill`): only accepted if the **entire** quantity can be filled immediately at prices at or better than the limit; otherwise the order is rejected and never rests on the book.
 - `Limit` (`Day`): rests until the market closes; any remaining quantity is cancelled at close.
 - `Market`: executes immediately by matching against the current book using a synthetic limit price; any unfilled remainder is cancelled after matching.
 - Both `Buy` and `Sell` sides are supported.

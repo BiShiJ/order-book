@@ -9,6 +9,7 @@ enum class OrderType : std::uint8_t {
     // Limit order
     GoodTilCanceled,
     ImmediateOrCancel,
+    FillOrKill,
     Day,
 
     // Market order
