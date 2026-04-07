@@ -1,4 +1,15 @@
+// order.h                                                                                                     -*-C++-*-
 #pragma once
+
+//@PURPOSE: Represent a single order with type, side, optional limit price, and remaining quantity.
+//
+//@CLASSES:
+//  Order: value-like order state for matching and lifecycle
+//
+//@MACROS:
+//
+//@DESCRIPTION: Limit orders carry a price; market orders use `std::nullopt` until the book assigns a synthetic price.
+// Callers must respect documented preconditions when reading price or applying fills.
 
 #include <iostream>
 #include <optional>
@@ -8,6 +19,7 @@
 
 namespace order_book {
 
+/// Mechanism class holding mutable order state used by `OrderBook` during matching.
 class Order {
   private:
     OrderId d_id;
@@ -18,35 +30,38 @@ class Order {
     Quantity d_remainingQuantity;
 
   public:
-    /// @param[in] price absent for market orders until @c setPrice() assigns the synthetic limit.
+    /// Create an order with the given id, type, side, optional limit price, and size.
+    /// @param[in] price absent for market orders until `setPrice` assigns the synthetic limit.
     Order(OrderId id,
           OrderType type,
           Side side,
           std::optional<Price> price,
           Quantity initialQuantity);
-    
-    /**
-     * Getters and setters
-     */
 
+    /// Return this order's id.
     [[nodiscard]] OrderId getId() const;
+
+    /// Return limit vs market classification.
     [[nodiscard]] OrderType getOrderType() const;
+
+    /// Return buy or sell side.
     [[nodiscard]] Side getSide() const;
 
-    /// @pre Limit price is set ( not @c std::nullopt ).
-    /// For market orders, only after @c setPrice() before book insertion.
+    /// Return the working limit price.
+    /// @pre Limit price is set (not `std::nullopt`). For market orders, only after `setPrice` before book insertion.
     [[nodiscard]] Price getPrice() const;
 
+    /// Set the working limit price (including synthetic price for market orders).
     void setPrice(Price price);
+
+    /// Return quantity not yet matched or canceled.
     [[nodiscard]] Quantity getRemainingQuantity() const;
 
-    /**
-     * Order filling logic
-     */
-
+    /// Return whether remaining quantity is zero.
     [[nodiscard]] bool isFilled() const;
 
-    /// @pre The @c quantityToFill value must be less than or equal to @c d_remainingQuantity.
+    /// Reduce remaining quantity by the fill amount.
+    /// @pre `quantityToFill` must not exceed `d_remainingQuantity`.
     void Fill(Quantity quantityToFill);
 };
 

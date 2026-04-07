@@ -1,4 +1,16 @@
+// order_book.h                                                                                                -*-C++-*-
 #pragma once
+
+//@PURPOSE: Provide a matching engine for limit and market orders with scheduled market session behavior.
+//
+//@CLASSES:
+//  OrderBook: central limit order book with session and matching logic
+//
+//@MACROS:
+//
+//@DESCRIPTION: The book maintains bid and ask levels, matches crossing orders,
+// and runs a background thread to open and close the market on a weekday schedule.
+// Public entry points synchronize access to in-memory structures; refer to class-level notes for threading.
 
 #include <atomic>
 #include <chrono>
@@ -21,12 +33,14 @@ namespace order_book {
 
 namespace cr = std::chrono;
 
+/// Mechanism class implementing a central limit order book with market-hours handling.
+///
+/// Thread safety: public methods that mutate or read book state use `d_ordersMutex`
+/// or atomic market status as documented at each function.
+/// The destructor coordinates shutdown with the market thread.
 class OrderBook {
   private:
-    /**
-     * Private struct definitions
-     */
-
+    /// Local calendar and clock parts for session scheduling.
     struct LocalTimeInfo {
         cr::local_time<cr::system_clock::duration> localTime;
         cr::local_days localDay;
@@ -34,6 +48,7 @@ class OrderBook {
         cr::seconds secondsWithinDay;
     };
 
+    /// Snapshot of system time and whether the session is open.
     struct MarketTimeStatus {
         cr::time_point<cr::system_clock> timePoint;
         bool isMarketOpen;
@@ -44,16 +59,13 @@ class OrderBook {
             timePoint(time), isMarketOpen(isOpen) {}
     };
 
+    /// Iterator and side for locating an order in the price-level lists.
     struct OrderLocation {
         Side side{};
         Price price{};
         std::list<Order>::iterator listIter;
     };
 
-    /**
-     * Static members
-     */
-    
     static cr::seconds s_marketOpenTime;
     static cr::seconds s_marketCloseTime;
 
@@ -66,14 +78,10 @@ class OrderBook {
     static cr::time_point<cr::system_clock> calculateNextEventTime(
         bool isNextEventOpen, const cr::time_point<cr::system_clock>& timePoint);
 
-    /**
-     * Thread-safe member variable
-     */
+    /// Last known market open/close state, updated by the market thread and readers.
     std::atomic<MarketTimeStatus> d_marketTimeStatus = MarketTimeStatus(cr::system_clock::now());
 
-    /**
-     * Use @c d_ordersMutex to protect order states
-     */
+    /// Mutex protecting order containers and matching.
     std::mutex d_ordersMutex;
     OrderId d_nextOrderId = OrderId(1);
     std::map<Price, std::list<Order>, std::greater<>> d_bids;
@@ -83,57 +91,41 @@ class OrderBook {
     std::map<Price, Quantity, std::less<>> d_askVolumes;
     std::map<OrderId, Order> d_pendingLimitOrders;
 
-    /**
-     * Use @c d_marketMutex to protect market states
-     */
+    /// Mutex and condition variable for market thread wakeups and shutdown.
     std::mutex d_marketMutex;
     std::condition_variable d_marketConditionVariable;
     bool d_isShuttingDown = false;
 
-    /**
-     * Thread handling market open/close
-     */
+    /// Thread that transitions market open/close on schedule.
     std::thread d_marketStatusThread;
 
-    /**
-     * Market open/close logic
-     */
     void openCloseMarket();
     void onMarketOpen(const cr::time_point<cr::system_clock>& timePoint);
     void addPendingLimitOrders();
     void onMarketClose(const cr::time_point<cr::system_clock>& timePoint);
     void cancelRemainingDayOrders();
 
-    /**
-     * Limit order logic
-     */
     std::vector<Trade> addLimitOrder(Order& order);
     bool shouldAddLimitOrder(const Order& order) const;
     bool canMatchLimitOrder(Side orderSide, Price orderPrice) const;
     bool canFullyFillLimitOrder(const Order& order) const;
 
-    /**
-     * Market order logic
-     */
     bool canMatchMarketOrder(Side orderSide) const;
     Price decideMarketOrderPrice(Side orderSide);
 
-    /**
-     * Internal logic to manipulate orders
-     */
-    
     std::vector<Trade> addOrder(Order& order);
     std::vector<Trade> matchExistingOrders();
     void eraseBestPriceLevelWhenEmpty();
     void cancelRemainingQuantityAfterMatching(OrderId orderId, OrderType orderType);
 
-    /// @pre @c orderId must already exist in the order book.
+    /// @pre `orderId` must already exist in the order book.
     void cancelExistingOrder(OrderId orderId);
 
   public:
+    /// Create a book and start the market-hours thread.
     OrderBook();
 
-    // Disable copying and moving
+    /// Disable copying and moving
     OrderBook(const OrderBook& other) = delete;
     OrderBook& operator=(const OrderBook& other) = delete;
     OrderBook(const OrderBook&& other) noexcept = delete;
@@ -141,11 +133,14 @@ class OrderBook {
 
     ~OrderBook();
 
-    /**
-     * Thread-safe public operations
-     */
+    /// Create a limit order and return any trades produced while holding `d_ordersMutex`.
+    /// If the market is closed, defer the order until open; returns empty in that case.
     std::vector<Trade> createAddLimitOrder(OrderType orderType, Side side, Price price, Quantity initialQuantity);
+
+    /// Create a market order when the market is open; return trades or empty if none.
     std::vector<Trade> createAddMarketOrder(Side side, Quantity initialQuantity);
+
+    /// Cancel a resting order by id; no effect if the id is unknown.
     void cancelOrder(OrderId orderId);
 };
 
