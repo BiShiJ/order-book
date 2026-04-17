@@ -66,8 +66,8 @@ class OrderBook {
         std::list<Order>::iterator listIter;
     };
 
-    static cr::seconds s_marketOpenTime;
-    static cr::seconds s_marketCloseTime;
+    static constexpr cr::seconds s_marketOpenTime = cr::hours(9) + cr::minutes(30);
+    static constexpr cr::seconds s_marketCloseTime = cr::hours(16);
 
     static bool isMarketInOpenHours(const cr::time_point<cr::system_clock>& timePoint);
     static LocalTimeInfo getLocalTimeInfo(const cr::time_point<cr::system_clock>& timePoint);

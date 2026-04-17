@@ -8,9 +8,6 @@
 
 namespace order_book {
 
-cr::seconds OrderBook::s_marketOpenTime = cr::hours(9) + cr::minutes(30);
-cr::seconds OrderBook::s_marketCloseTime = cr::hours(16);
-
 bool OrderBook::isMarketInOpenHours(const cr::time_point<cr::system_clock>& timePoint) {
     const auto [_, localDay, localSecond, secondsWithinDay] = getLocalTimeInfo(timePoint);
 
