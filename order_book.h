@@ -96,8 +96,8 @@ class OrderBook {
     std::condition_variable d_marketConditionVariable;
     bool d_isShuttingDown = false;
 
-    /// Thread that transitions market open/close on schedule.
-    std::thread d_marketStatusThread;
+    /// Joining thread that transitions market open/close on schedule.
+    std::jthread d_marketStatusThread;
 
     void openCloseMarket();
     void onMarketOpen(const cr::time_point<cr::system_clock>& timePoint);
@@ -148,13 +148,9 @@ inline OrderBook::OrderBook() :
     d_marketStatusThread([this] { openCloseMarket(); }) {}
 
 inline OrderBook::~OrderBook() {
-    {
-        std::scoped_lock marketLock(d_marketMutex);
-        d_isShuttingDown = true;
-        d_marketConditionVariable.notify_all();
-    }
-
-    d_marketStatusThread.join();
+    std::scoped_lock marketLock(d_marketMutex);
+    d_isShuttingDown = true;
+    d_marketConditionVariable.notify_all();
 }
 
 } // namespace order_book
