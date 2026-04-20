@@ -1,8 +1,8 @@
 # GNU Make finds this as 'makefile' (repo .gitignore ignores 'Makefile' for CMake).
 CXX ?= g++
-CXXFLAGS ?= -std=c++20 -Wall -Wextra -pedantic
+CXXFLAGS ?= -std=c++20 -Wall -Wextra -pedantic -pthread
 # std::atomic<OrderBook::MarketTimeStatus> is 16 bytes; GCC may call __atomic_* from libatomic.
-LDFLAGS ?= -latomic
+LDFLAGS ?= -pthread -latomic
 SOURCES := main.cpp order_book.cpp
 TARGET := order_book.out
 CLANG_TIDY ?= clang-tidy
