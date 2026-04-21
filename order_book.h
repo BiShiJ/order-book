@@ -148,8 +148,10 @@ inline OrderBook::OrderBook() :
     d_marketStatusThread([this] { openCloseMarket(); }) {}
 
 inline OrderBook::~OrderBook() {
-    std::scoped_lock marketLock(d_marketMutex);
-    d_isShuttingDown = true;
+    {
+        std::scoped_lock marketLock(d_marketMutex);
+        d_isShuttingDown = true;
+    }
     d_marketConditionVariable.notify_all();
 }
 

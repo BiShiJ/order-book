@@ -97,7 +97,7 @@ void OrderBook::openCloseMarket() {
             return;
         }
         
-        if ( isMarketInOpenHours(nowTimePoint) ) {
+        if (isMarketInOpenHours(nowTimePoint)) {
             onMarketOpen(nowTimePoint);
         } else {
             onMarketClose(nowTimePoint);
