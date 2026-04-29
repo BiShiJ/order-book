@@ -3,6 +3,7 @@
 #include "order_book.h"
 
 #include <cassert>
+#include <format>
 #include <iostream>
 #include <iterator>
 
@@ -370,7 +371,7 @@ std::vector<Trade> OrderBook::createAddLimitOrder(
 
     if (!d_marketTimeStatus.load(std::memory_order_acquire).isMarketOpen) {
         std::cout << "Market is closed. Limit order has been created. "
-                  << "orderId=" << orderId
+                  << "orderId=" << orderId << ". "
                   << "It will be added to order book when market opens.\n";
         d_pendingLimitOrders.emplace(orderId, order);
         return {};
@@ -402,7 +403,7 @@ void OrderBook::cancelOrder(const OrderId orderId) {
     std::scoped_lock ordersLock(d_ordersMutex);
 
     if (!d_orderMap.contains(orderId)) {
-        std::cerr << "Cannot find order. Cancellation failed. orderId=" << orderId << ".\n";
+        std::cerr << std::format("Cannot find order. Cancellation failed. orderId={}.\n", orderId);
         return;
     }
 

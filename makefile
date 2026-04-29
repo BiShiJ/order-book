@@ -19,7 +19,8 @@ $(TARGET): $(SOURCES) order_book.h order.h trade.h enums.h aliases.h
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SOURCES) $(LDFLAGS)
 
 lint:
-	@command -v $(CLANG_TIDY) >/dev/null 2>&1 || { echo "clang-tidy not found; install e.g. apt install clang-tidy or brew install llvm"; exit 1; }
+	@command -v $(CLANG_TIDY) >/dev/null 2>&1 \
+		|| { echo "clang-tidy not found; try: apt install clang-tidy"; exit 1; }
 	$(CLANG_TIDY) $(SOURCES) -- $(CXXFLAGS)
 
 clean:
