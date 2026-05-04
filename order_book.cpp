@@ -284,12 +284,12 @@ std::vector<Trade> OrderBook::matchExistingOrders() {
             const Price tradePrice = bidOrderId < askOrderId ? bestBidPrice : bestAskPrice;
 
             if (earliestBid.isFilled()) {
-                bestBids.pop_front();
                 d_orderMap.erase(bidOrderId);
+                bestBids.pop_front();
             }
             if (earliestAsk.isFilled()) {
-                bestAsks.pop_front();
                 d_orderMap.erase(askOrderId);
+                bestAsks.pop_front();
             }
             
             Trade::Args tradeArgs = {
