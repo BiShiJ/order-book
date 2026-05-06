@@ -69,12 +69,12 @@ cr::time_point<cr::system_clock> OrderBook::calculateNextEventTime(
 cr::local_days OrderBook::calculateNextWeekday(const cr::local_days& localDay) {
     const cr::weekday dayInWeek = cr::weekday(localDay);
     if (dayInWeek == cr::Friday) {
-        return localDay + cr::days(3);
+        return localDay + cr::days{3};
     }
     if (dayInWeek == cr::Saturday) {
-        return localDay + cr::days(2);
+        return localDay + cr::days{2};
     }
-    return localDay + cr::days(1);
+    return localDay + cr::days{1};
 }
 
 void OrderBook::openCloseMarket() {

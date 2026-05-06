@@ -66,8 +66,8 @@ class OrderBook {
         std::list<Order>::iterator listIter;
     };
 
-    static constexpr cr::seconds s_marketOpenTime = cr::hours(9) + cr::minutes(30);
-    static constexpr cr::seconds s_marketCloseTime = cr::hours(16);
+    static constexpr cr::seconds s_marketOpenTime = cr::hours{9} + cr::minutes{30};
+    static constexpr cr::seconds s_marketCloseTime = cr::hours{16};
 
     static bool isMarketInOpenHours(const cr::time_point<cr::system_clock>& timePoint);
     static LocalTimeInfo getLocalTimeInfo(const cr::time_point<cr::system_clock>& timePoint);
@@ -83,7 +83,7 @@ class OrderBook {
 
     /// Mutex protecting order containers and matching.
     std::mutex d_ordersMutex;
-    OrderId d_nextOrderId = OrderId(1);
+    OrderId d_nextOrderId = OrderId{1};
     std::map<Price, std::list<Order>, std::greater<>> d_bids;
     std::map<Price, std::list<Order>, std::less<>> d_asks;
     std::unordered_map<OrderId, OrderLocation> d_orderMap;
@@ -128,8 +128,8 @@ class OrderBook {
     /// Disable copying and moving
     OrderBook(const OrderBook& other) = delete;
     OrderBook& operator=(const OrderBook& other) = delete;
-    OrderBook(const OrderBook&& other) noexcept = delete;
-    OrderBook& operator=(const OrderBook&& other) = delete;
+    OrderBook(OrderBook&& other) noexcept = delete;
+    OrderBook& operator=(OrderBook&& other) noexcept = delete;
 
     ~OrderBook();
 
