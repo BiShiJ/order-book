@@ -19,8 +19,6 @@
 #include <list>
 #include <map>
 #include <mutex>
-#include <queue>
-#include <semaphore>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -54,9 +52,9 @@ class OrderBook {
         bool isMarketOpen;
 
         MarketTimeStatus(const cr::time_point<cr::system_clock>& time) :
-            timePoint(time), isMarketOpen(isMarketInOpenHours(time)) {}
+            timePoint{time}, isMarketOpen{isMarketInOpenHours(time)} {}
         MarketTimeStatus(const cr::time_point<cr::system_clock>& time, bool isOpen) :
-            timePoint(time), isMarketOpen(isOpen) {}
+            timePoint{time}, isMarketOpen{isOpen} {}
     };
 
     /// Iterator and side for locating an order in the price-level lists.
@@ -72,11 +70,11 @@ class OrderBook {
     static bool isMarketInOpenHours(const cr::time_point<cr::system_clock>& timePoint);
     static LocalTimeInfo getLocalTimeInfo(const cr::time_point<cr::system_clock>& timePoint);
     static bool isWeekday(const cr::local_days& localDay);
-    static cr::local_days calculateNextWeekday(const cr::local_days& localDay);
     static cr::time_point<cr::system_clock> calculateNextOpenTime(const cr::time_point<cr::system_clock>& timePoint);
     static cr::time_point<cr::system_clock> calculateNextCloseTime(const cr::time_point<cr::system_clock>& timePoint);
     static cr::time_point<cr::system_clock> calculateNextEventTime(
         bool isNextEventOpen, const cr::time_point<cr::system_clock>& timePoint);
+    static cr::local_days calculateNextWeekday(const cr::local_days& localDay);
 
     /// Last known market open/close state, updated by the market thread and readers.
     std::atomic<MarketTimeStatus> d_marketTimeStatus = MarketTimeStatus(cr::system_clock::now());

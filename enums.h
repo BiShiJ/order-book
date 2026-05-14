@@ -7,7 +7,7 @@
 //
 //@MACROS:
 //
-//@DESCRIPTION: These enumerations classify how orders participate in matching and whether they are bids or offers.
+//@DESCRIPTION: These enumerations classify how orders participate in matching and whether they are bids or asks.
 
 #include <cstdint>
 #include <ostream>
@@ -23,7 +23,7 @@ enum class OrderType : std::uint8_t {
     Day,
 
     // Market order
-    Market
+    Market,
 };
 
 /// Enumeration used to distinguish buy and sell interest.

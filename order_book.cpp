@@ -62,8 +62,8 @@ cr::time_point<cr::system_clock> OrderBook::calculateNextEventTime(
     const cr::local_days eventDay =
         isWeekday(localDay) && secondsWithinDay < eventTimeWithinDay ? localDay : calculateNextWeekday(localDay);
     const cr::local_seconds eventSecond = eventDay + eventTimeWithinDay;
-    const cr::zoned_time zonedEvent = cr::zoned_time(cr::current_zone(), eventSecond);
-    return zonedEvent.get_sys_time();
+    const cr::zoned_time zonedEventTime = cr::zoned_time(cr::current_zone(), eventSecond);
+    return zonedEventTime.get_sys_time();
 }
 
 cr::local_days OrderBook::calculateNextWeekday(const cr::local_days& localDay) {
@@ -233,14 +233,16 @@ std::vector<Trade> OrderBook::addOrder(Order& order) {
     Price price = order.getPrice();
 
     if (side == Side::Buy) {
-        d_bids[price].push_back(order);
+        std::list<Order>& bidsAtPrice = d_bids[price];
+        bidsAtPrice.push_back(order);
         d_orderMap.emplace(orderId,
-            OrderLocation{.side = side, .price = price, .listIter = std::prev(d_bids[price].end())});
+            OrderLocation{.side = side, .price = price, .listIter = std::prev(bidsAtPrice.end())});
         d_bidVolumes[price] += order.getRemainingQuantity();
     } else {
-        d_asks[price].push_back(order);
+        std::list<Order>& asksAtPrice = d_asks[price];
+        asksAtPrice.push_back(order);
         d_orderMap.emplace(orderId,
-            OrderLocation{.side = side, .price = price, .listIter = std::prev(d_asks[price].end())});
+            OrderLocation{.side = side, .price = price, .listIter = std::prev(asksAtPrice.end())});
         d_askVolumes[price] += order.getRemainingQuantity();
     }
 
